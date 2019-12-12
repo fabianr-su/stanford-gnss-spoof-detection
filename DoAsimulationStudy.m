@@ -5,7 +5,7 @@
 % 
 % Appel, M. et al. Experimental validation of GNSS repeater detection 
 % based on antenna arrays for maritime applications. CEAS Sp. J. 11, 
-% 7–19 (2019).
+% 7Â–19 (2019).
 % 
 % 
 % When using code from this script please cite:
@@ -203,6 +203,141 @@ ylim([0 1.1])
 xlabel('Simulation run', 'FontSize', fs, 'Interpreter', 'latex')
 ylabel('Normalized $\sum\sigma_i$', ...
     'FontSize', fs, 'Interpreter', 'latex')
+%% functions
+
+function q = euler2q(eulerAngles)
+%euler2q(eulerAngles)
+%   Calculates quaternions q from Euler angles roll, pitch, yaw. Returns
+%   angles in a vector of dimensions similar to dimensions of eulerAngles.
+%   Operates on each column of eulerAngles, unless the number of rows of 
+%   eulerAngles is not 3.
+%   Input:
+%   eulerAngles array<double> of calculated Euler Angles. Can be 3 x N or 
+%               N x 3.
+%   
+%   Output:
+%   q           array<double> of quaternions. In dimensions
+%               similar to q. That is, if q is a 4 x N matrix, then
+%               eulerAngles is a 3 x N matrix and vice versa.
+%   
+%   Based on the formulas in "Representing Attitude: Euler Angles, Unit 
+%   Quaternions and Rotation Vectors" by James Diebel, 20 Oct. 2006.
+%   
+%   Written by Fabian Rothmaier, 2019
+
+% ensure working with column vectors of Euler angles
+if size(eulerAngles, 1) ~= 3
+    flipDim = true;
+    seA = sin(eulerAngles' / 2);
+    ceA = cos(eulerAngles' / 2);
+else
+    flipDim = false;
+    seA = sin(eulerAngles / 2);
+    ceA = cos(eulerAngles / 2);
+end
+q = [prod(ceA, 1) + prod(seA, 1); ...
+     -ceA(1, :) .* seA(2, :) .* seA(3, :) + ...
+        seA(1, :) .* ceA(2, :) .* ceA(3, :); ...
+     ceA(1, :) .* seA(2, :) .* ceA(3, :) + ...
+        seA(1, :) .* ceA(2, :) .* seA(3, :); ...
+     ceA(1, :) .* ceA(2, :) .* seA(3, :) - ...
+        seA(1, :) .* seA(2, :) .* ceA(3, :)];
+
+% transpose again to original dimensions if necessary
+if flipDim
+    q = q';
+end
+
+end
+
+function eulerAngles = q2euler(q)
+%q2euler(q)
+%   Calculates Euler angles roll, pitch, yaw from quaternions q. Returns
+%   angles in a vector of dimensions similar to dimensions of q.
+%   Operates on each column of q, unless the number of rows of q is not 4.
+%   
+%   Input:
+%   q           array<double> of quaternions. Can be 4 x N or N x 4.
+%   
+%   Output:
+%   eulerAngles array<double> of calculated Euler Angles. In dimensions
+%               similar to q. That is, if q is a 4 x N matrix, then
+%               eulerAngles is a 3 x N matrix and vice versa.
+%   
+%   Based on the formulas in "Representing Attitude: Euler Angles, Unit 
+%   Quaternions and Rotation Vectors" by James Diebel, 20 Oct. 2006.
+%   
+%   Written by Fabian Rothmaier, 2019
+
+% ensure working with column vectors of quaternions
+if size(q, 1) ~= 4
+    flipDim = true;
+    q = q';
+else
+    flipDim = false;
+end
+eulerAngles = [atan2(2.*q(3, :).*q(4, :) + 2.*q(1, :).*q(2, :), ...
+                     q(1, :).^2 + q(4, :).^2 - q(2, :).^2 - q(3, :).^2); ...
+               -asin(2.*q(2, :).*q(4, :) - 2.*q(1, :).*q(3, :)); ...
+               atan2(2.*q(2, :).*q(3, :) + 2.*q(1, :).*q(4, :), ...
+                     q(1, :).^2 + q(2, :).^2 - q(3, :).^2 - q(4, :).^2)];
+
+% transpose again to original dimensions if necessary
+if flipDim
+    eulerAngles = eulerAngles';
+end
+
+end
+
+
+function r = qMult(p, q)
+%qMult(p, q)
+%   Quaternion multiplication p * q.
+%   Follows the convention that multiplication is right to left.
+%   
+%   Expects p and q to have the same dimensions. They can be 4 x N or N x 4
+%   arrays.
+%   
+%   Input:
+%   p   array<double> of quaternions. Can be 4 x N or N x 4.
+%   q   array<double> of quaternions. Must be same dimensions as p.
+%   
+%   Output:
+%   r   array<double> of quaternions. Same dimensions as p.
+%   
+%   Based on the formulas in "Representing Attitude: Euler Angles, Unit 
+%   Quaternions and Rotation Vectors" by James Diebel, 20 Oct. 2006.
+%   
+%   Written by Fabian Rothmaier, 2019
+
+% ensure working with column vectors of quaternions
+if size(q, 1) ~= 4
+    flipDim = true;
+    q = q';
+    p = p';
+else
+    flipDim = false;
+end
+
+% generate rotation matrix
+Q = @(p) [p(1) -p(2:4)'; 
+          p(2) p(1) p(4) -p(3);
+          p(3) -p(4) p(1) p(2);
+          p(4) p(3) -p(2) p(1)];
+
+% compute multiplication for each quaternion pair
+N = size(q, 2);
+r = zeros(4, N);
+for n = 1:N
+    r(:, n) = Q(p(:, n)) * q(:, n);
+end
+
+% revert dimensions back if necessary
+if flipDim
+    r = r';
+end
+
+end
 
 
 function centralAngle = getCentralAngle(lambda1, lambda2, phi1, phi2)
