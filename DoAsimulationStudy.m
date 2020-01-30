@@ -31,6 +31,10 @@ scenario = 1;
 % set false alert probability
 pFAmaxPot = -8; % 10^x
 
+% For sequential approach: set number of measurements to consider
+nSeq = 3;
+
+
 % constellation parameters
 N = 3; % number of satellites
 azSpoof = 2; % azimuth direction of spoofer
@@ -118,7 +122,7 @@ y_bar = getCentralAngle(sM1 * azMeas, sM2 * azMeas, ...
 PhiT = norminv(10^pFAmaxPot);
 
 % preallocate result variables
-[SigCA, logLambdaCA] = deal(zeros(1, K));
+[SigCA, logLambdaCA, logLambdaNormCAseq] = deal(zeros(1, K));
 Q = zeros(3, K);
 
 
@@ -159,6 +163,11 @@ for k = 1:K
     % log(Lambda(y)) distance from its mean under H_0
     logLambdaCA(k) = phi_bar(:, k)' * (S_barCA \ (y_bar(:, k) - phi_bar(:, k)));
     
+    % sequential Lambda (consider nSeq epochs)
+    seqEp = max([1, k-nSeq+1]) : k;
+    logLambdaNormCAseq(k) = sum(logLambdaCA(seqEp)) ...
+        / sqrt(sum(SigCA(seqEp)));
+        
 end
 
 %% Plot results
@@ -179,7 +188,8 @@ ylabel('pdf', 'FontSize', fs, 'Interpreter', 'latex')
 
 % snapshot normalized log Lambdas using great circle arcs
 fig1 = figure; hold on; grid on;
-plot(logLambdaCA ./ sqrt(SigCA), linestyle, 'LineWidth', 1.5);
+p1 = plot(logLambdaCA ./ sqrt(SigCA), [linestyle(1), ':']);
+p2 = plot(logLambdaNormCAseq, linestyle, 'LineWidth', 1.5);
 % ylim([-25 5])
 plot(fig1.CurrentAxes.YLim(2)*(logLambdaCA ./ sqrt(SigCA) < PhiT) ...
     + fig1.CurrentAxes.YLim(1)*(logLambdaCA ./ sqrt(SigCA) >= PhiT), ...
@@ -189,6 +199,8 @@ line([0 K], [PhiT PhiT], 'Color', 'k') % decision threshold
 % ylim(fig1.CurrentAxes.YLim)
 text(K*0.75, PhiT-2, ['$P_{FA_{max}} = 10^{', num2str(pFAmaxPot), '}$'], ...
     'FontSize', fs-6, 'Interpreter', 'latex')
+legend([p1; p2], {'snapshot'; 'sequential'}, ...
+    'Location', 'southeast', 'FontSize', fs-8, 'Interpreter', 'latex')
 title(['$\sigma^2 = ', num2str(covDeg), '$ deg$^2$, ', ...
     'snapshot-based'], ...
     'FontSize', fs, 'Interpreter', 'latex')
